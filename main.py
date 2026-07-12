@@ -1,11 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import init_db
-from auth import auth_router
-# Comment out the ones that aren't separate files in your directory list yet:
-# from inventory import inventory_router
-# from sales import sales_router
-# from ai import ai_router
 
 app = FastAPI(
     title="VYAAPARI API",
@@ -22,11 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(auth_router.router)
-app.include_router(inventory_router.router)
-app.include_router(sales_router.router)
-app.include_router(ai_router.router)
+# We will include routers here once their files are set up!
 
 @app.on_event("startup")
 def startup_event():
@@ -39,9 +30,10 @@ def root():
 @app.get("/health", tags=["Health"])
 def health_check():
     return {"status": "healthy", "service": "vyaapari-backend"}
+
 @app.get("/api/dashboard/metrics", tags=["Dashboard"])
 def get_dashboard_metrics():
-    # This provides the initial dashboard state for your meal/vendor tracker!
+    # Provides initial dashboard state for tracking points and streaks!
     return {
         "total_sales": 0.0,
         "points": 100,
