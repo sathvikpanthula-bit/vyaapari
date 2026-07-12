@@ -217,8 +217,31 @@ def ai_chat(payload: ChatRequest):
     try:
         from ibm_watsonx_ai.foundation_models import Model
         credentials = {"url": "https://au-syd.ml.cloud.ibm.com", "apikey": watsonx_key}
-        model = Model(model_id="meta-llama/llama-3-3-70b-instruct", credentials=credentials, project_id=watsonx_project)
-        return {"response": model.generate_text(prompt=f"Vendor Assistant:\nUser: {payload.message}\nAssistant:").strip()}
+        
+        # Configure robust response boundaries for Llama 3.3 model execution
+        parameters = {
+            "decoding_method": "greedy",
+            "max_new_tokens": 600,  
+            "min_new_tokens": 1,
+            "repetition_penalty": 1.0
+        }
+        
+        model = Model(
+            model_id="meta-llama/llama-3-3-70b-instruct", 
+            credentials=credentials, 
+            project_id=watsonx_project,
+            params=parameters
+        )
+        
+        system_prompt = (
+            "You are an expert micro-business consultant assisting local street vendors and small shops. "
+            "Provide highly actionable, detailed, and practical advice on pricing strategies, inventory layout, "
+            "customer retention, and financial literacy (like PM SVANidhi loans or digital UPI setups). "
+            "Respond thoroughly and list clear execution points.\n\n"
+        )
+        
+        full_prompt = f"{system_prompt}User: {payload.message}\nAssistant:"
+        return {"response": model.generate_text(prompt=full_prompt).strip()}
     except Exception as e:
         return {"response": f"AI error: {str(e)}"}
 
