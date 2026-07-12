@@ -8,10 +8,9 @@ from typing import Optional, List
 app = FastAPI(
     title="VYAAPARI API",
     description="Indestructible Multi-User Street Vendor Agent Backend",
-    version="3.2.0",
+    version="3.3.0",
 )
 
-# Completely open CORS to prevent any browser blocks
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -51,18 +50,16 @@ class AuthRequest(BaseModel):
     city: Optional[str] = "Hyderabad"
 
 # --- 🛠️ SAFE DATA UTILITIES ---
-def get_user_from_token(authorization: str = Header(None), x_user_email: str = Header(None)) -> str:
-    """Extracts email identifier safely without ever crashing"""
+def extract_email_from_strings(auth_header: Optional[str], email_header: Optional[str]) -> str:
+    """Cleans up and matches authorization tokens directly to private keys"""
     try:
-        if x_user_email and x_user_email.strip():
-            return x_user_email.strip().lower()
+        if email_header and email_header.strip():
+            return email_header.strip().lower()
 
-        if not authorization:
+        if not auth_header:
             return "default_vendor@vyaapari.com"
             
-        token_str = str(authorization).strip()
-        
-        # Clean out "Bearer" prefixes aggressively
+        token_str = str(auth_header).strip()
         if "bearer" in token_str.lower():
             token_str = token_str.lower().replace("bearer", "").strip()
             
@@ -121,9 +118,12 @@ def login_vendor(payload: AuthRequest):
 # --- 📦 USER-ISOLATED INVENTORY ENDPOINTS ---
 @app.get("/inventory/")
 @app.get("/api/inventory/")
-def get_inventory(authorization: str = Header(None), x_user_email: str = Header(None)):
+def get_inventory(
+    authorization: Optional[str] = Header(None, alias="Authorization"), 
+    x_user_email: Optional[str] = Header(None, alias="X-User-Email")
+):
     try:
-        user_id = get_user_from_token(authorization, x_user_email)
+        user_id = extract_email_from_strings(authorization, x_user_email)
         user_id = initialize_user_space(user_id)
         return USER_INVENTORY.get(user_id, [])
     except Exception:
@@ -131,9 +131,13 @@ def get_inventory(authorization: str = Header(None), x_user_email: str = Header(
 
 @app.post("/inventory/")
 @app.post("/api/inventory/")
-def add_inventory_item(item: ItemRequest, authorization: str = Header(None), x_user_email: str = Header(None)):
+def add_inventory_item(
+    item: ItemRequest, 
+    authorization: Optional[str] = Header(None, alias="Authorization"), 
+    x_user_email: Optional[str] = Header(None, alias="X-User-Email")
+):
     try:
-        user_id = get_user_from_token(authorization, x_user_email)
+        user_id = extract_email_from_strings(authorization, x_user_email)
         user_id = initialize_user_space(user_id)
         
         current_list = USER_INVENTORY.get(user_id, [])
@@ -151,9 +155,12 @@ def add_inventory_item(item: ItemRequest, authorization: str = Header(None), x_u
 # --- 💰 USER-ISOLATED SALES MANAGEMENT ---
 @app.get("/sales/")
 @app.get("/api/sales/")
-def get_sales_data(authorization: str = Header(None), x_user_email: str = Header(None)):
+def get_sales_data(
+    authorization: Optional[str] = Header(None, alias="Authorization"), 
+    x_user_email: Optional[str] = Header(None, alias="X-User-Email")
+):
     try:
-        user_id = get_user_from_token(authorization, x_user_email)
+        user_id = extract_email_from_strings(authorization, x_user_email)
         user_id = initialize_user_space(user_id)
         return USER_SALES.get(user_id, [])
     except Exception:
@@ -161,9 +168,13 @@ def get_sales_data(authorization: str = Header(None), x_user_email: str = Header
 
 @app.post("/sales/")
 @app.post("/api/sales/")
-def record_revenue(sale: SalesRequest, authorization: str = Header(None), x_user_email: str = Header(None)):
+def record_revenue(
+    sale: SalesRequest, 
+    authorization: Optional[str] = Header(None, alias="Authorization"), 
+    x_user_email: Optional[str] = Header(None, alias="X-User-Email")
+):
     try:
-        user_id = get_user_from_token(authorization, x_user_email)
+        user_id = extract_email_from_strings(authorization, x_user_email)
         user_id = initialize_user_space(user_id)
         
         current_sales = USER_SALES.get(user_id, [])
@@ -185,9 +196,12 @@ def record_revenue(sale: SalesRequest, authorization: str = Header(None), x_user
 # --- 📊 USER-ISOLATED DASHBOARD METRICS ---
 @app.get("/dashboard/metrics")
 @app.get("/api/dashboard/metrics")
-def get_dashboard_metrics(authorization: str = Header(None), x_user_email: str = Header(None)):
+def get_dashboard_metrics(
+    authorization: Optional[str] = Header(None, alias="Authorization"), 
+    x_user_email: Optional[str] = Header(None, alias="X-User-Email")
+):
     try:
-        user_id = get_user_from_token(authorization, x_user_email)
+        user_id = extract_email_from_strings(authorization, x_user_email)
         user_id = initialize_user_space(user_id)
         
         user_sales = USER_SALES.get(user_id, [])
@@ -218,7 +232,6 @@ def ai_chat(payload: ChatRequest):
         from ibm_watsonx_ai.foundation_models import Model
         credentials = {"url": "https://au-syd.ml.cloud.ibm.com", "apikey": watsonx_key}
         
-        # Configure robust response boundaries for Llama 3.3 model execution
         parameters = {
             "decoding_method": "greedy",
             "max_new_tokens": 600,  
