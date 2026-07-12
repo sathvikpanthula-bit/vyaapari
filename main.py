@@ -27,25 +27,22 @@ class ChatRequest(BaseModel):
 
 @app.post("/api/ai/chat", tags=["AI"])
 def ai_chat(payload: ChatRequest):
-    # 🔐 Extract credentials from your environment mapping panel
+    # 🔐 Read environment dashboard keys directly
     watsonx_key = os.environ.get("WATSONX_APIKEY") or os.getenv("WATSONX_APIKEY", "")
     watsonx_project = os.environ.get("WATSONX_PROJECT_ID") or os.getenv("WATSONX_PROJECT_ID", "")
-    
-    # 🌏 Official IBM Cloud Public Sydney Endpoint
-    watsonx_url = "https://au-syd.ml.cloud.ibm.com"
 
     if not watsonx_key or not watsonx_project:
         return {
-            "response": "Authentication keys missing from the environment runtime setup."
+            "response": "Authentication keys are currently missing from the system setup."
         }
 
     try:
+        # 🌏 Explicitly set the direct cloud API base to bypass the OpenShift error check
         credentials = {
-            "url": watsonx_url,
+            "url": "https://cpd-api.au-syd.dai.cloud.ibm.com",
             "apikey": watsonx_key
         }
         
-        # Core Granite foundation client initialization parameters
         model_id = "ibm/granite-13b-instruct-v2"
         parameters = {
             "decoding_method": "greedy",
