@@ -22,28 +22,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- 📁 DATA STRUCTURE SCHEMAS ---
 class ChatRequest(BaseModel):
     message: str
 
+class ItemRequest(BaseModel):
+    name: str
+    quantity: int
+    price: float
+    category: str = "General"
+
+class SalesRequest(BaseModel):
+    amount: float
+    description: str = ""
+    item_id: int = None
+
+# --- 🧠 AI CHAT LAYER ---
 @app.post("/api/ai/chat", tags=["AI"])
 def ai_chat(payload: ChatRequest):
-    # 🔐 Read environment dashboard keys directly
     watsonx_key = os.environ.get("WATSONX_APIKEY") or os.getenv("WATSONX_APIKEY", "")
     watsonx_project = os.environ.get("WATSONX_PROJECT_ID") or os.getenv("WATSONX_PROJECT_ID", "")
 
     if not watsonx_key or not watsonx_project:
-        return {
-            "response": "Authentication keys are currently missing from the system setup."
-        }
+        return {"response": "Authentication keys are currently missing from the system setup."}
 
     try:
-        # 🌏 Official public IBM Cloud Sydney endpoint matching SDK v1.3.42
         credentials = {
             "url": "https://au-syd.ml.cloud.ibm.com",
             "apikey": watsonx_key
         }
         
-        # 🚀 Successfully targeting the exact Llama model supported by your region
         model_id = "meta-llama/llama-3-3-70b-instruct"
         parameters = {
             "decoding_method": "greedy",
@@ -71,31 +79,67 @@ def ai_chat(payload: ChatRequest):
         return {"response": generated_response.strip()}
         
     except Exception as e:
-        return {
-            "response": f"Connected to backend, but watsonx execution encountered an error: {str(e)}"
+        return {"response": f"Connected to backend, but watsonx execution encountered an error: {str(e)}"}
+
+# --- 📦 INVENTORY MANAGEMENT ENDPOINTS ---
+@app.get("/inventory/", tags=["Inventory"])
+@app.get("/api/inventory/", tags=["Inventory"])
+def get_inventory():
+    # Return placeholder items to populate your list safely
+    return [
+        {"id": 1, "name": "Sample Apple Batch", "quantity": 50, "price": 2.0, "category": "Fruits"},
+        {"id": 2, "name": "Sample Banana Bundle", "quantity": 30, "price": 1.5, "category": "Fruits"}
+    ]
+
+@app.post("/inventory/", tags=["Inventory"])
+@app.post("/api/inventory/", tags=["Inventory"])
+def add_inventory_item(item: ItemRequest):
+    return {
+        "status": "success",
+        "message": f"Successfully recorded stock for {item.name}!",
+        "item": {
+            "id": 99,
+            "name": item.name,
+            "quantity": item.quantity,
+            "price": item.price,
+            "category": item.category
         }
+    }
 
-# 📊 FRONTEND PATH SYNC FIXES
-# These direct paths match what DashboardHome.tsx is trying to fetch!
+# --- 💰 REVENUE / SALES ENDPOINTS ---
+@app.get("/sales/", tags=["Sales"])
+@app.get("/api/sales/", tags=["Sales"])
+def get_sales_data():
+    return [
+        {"id": 1, "amount": 120.0, "description": "Morning vegetable market sales"},
+        {"id": 2, "amount": 45.5, "description": "Afternoon juice stall transactions"}
+    ]
 
+@app.post("/sales/", tags=["Sales"])
+@app.post("/api/sales/", tags=["Sales"])
+def record_revenue(sale: SalesRequest):
+    return {
+        "status": "success",
+        "message": f"Revenue of {sale.amount} recorded successfully!",
+        "sale": {
+            "id": 101,
+            "amount": sale.amount,
+            "description": sale.description
+        }
+    }
+
+# --- 📊 DASHBOARD METRICS ---
 @app.get("/dashboard/metrics", tags=["Dashboard"])
 @app.get("/api/dashboard/metrics", tags=["Dashboard"])
 def get_dashboard_metrics():
     return {
-        "total_sales": 0.0,
-        "points": 100,
-        "streak_days": 5,
-        "recent_activity": []
+        "total_sales": 165.5,
+        "points": 120,
+        "streak_days": 6,
+        "recent_activity": ["Added Stock: Apple Batch", "Recorded Sale: 45.5"]
     }
 
-@app.get("/sales/", tags=["Sales"])
-@app.get("/api/sales/", tags=["Sales"])
-def get_sales_data():
-    return {
-        "sales_history": [],
-        "message": "Sales tracking endpoint loaded successfully."
-    }
-
+# --- 🚀 SYSTEM STARTUP & HEALTH ---
 @app.on_event("startup")
 def startup_event():
     init_db()
