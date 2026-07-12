@@ -1,7 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import init_db
-from routers import auth_router, inventory_router, sales_router, ai_router
+from auth import auth_router
+# Comment out the ones that aren't separate files in your directory list yet:
+# from inventory import inventory_router
+# from sales import sales_router
+# from ai import ai_router
 
 app = FastAPI(
     title="VYAAPARI API",
