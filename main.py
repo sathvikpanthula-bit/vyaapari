@@ -6,6 +6,10 @@ import os
 
 # 🤖 IBM watsonx.ai SDK Imports
 from ibm_watsonx_ai.foundation_models import Model
+from dotenv import load_dotenv
+
+# Pre-load local configurations without erasing live cloud infrastructure keys
+load_dotenv()
 
 app = FastAPI(
     title="VYAAPARI API",
@@ -25,10 +29,10 @@ app.add_middleware(
 class ChatRequest(BaseModel):
     message: str
 
-# 🔐 Extract Environment Variables from Render Config Panel
-WATSONX_APIKEY = os.getenv("WATSONX_APIKEY", "")
-WATSONX_PROJECT_ID = os.getenv("WATSONX_PROJECT_ID", "")
-WATSONX_URL = os.getenv("WATSONX_URL", "https://us-south.ml.cloud.ibm.com")
+# 🔐 Extract Environment Variables (Reads Render settings dashboard first)
+WATSONX_APIKEY = os.environ.get("WATSONX_APIKEY") or os.getenv("WATSONX_APIKEY", "")
+WATSONX_PROJECT_ID = os.environ.get("WATSONX_PROJECT_ID") or os.getenv("WATSONX_PROJECT_ID", "")
+WATSONX_URL = os.environ.get("WATSONX_URL") or os.getenv("WATSONX_URL", "https://us-south.ml.cloud.ibm.com")
 
 credentials = {
     "url": WATSONX_URL,
@@ -37,10 +41,14 @@ credentials = {
 
 @app.post("/api/ai/chat", tags=["AI"])
 def ai_chat(payload: ChatRequest):
-    # Safe check if variables aren't entered in Render settings yet
+    # Safe check if keys are completely missing from the system context
     if not WATSONX_APIKEY or not WATSONX_PROJECT_ID:
         return {
-            "response": "Granite engine is waiting for access keys. Please add WATSONX_APIKEY and WATSONX_PROJECT_ID inside your Render Environment settings tab!"
+            "response": (
+                f"Granite engine is online, but variables are empty strings. "
+                f"Current system read status -> APIKEY present: {bool(WATSONX_APIKEY)}, "
+                f"PROJECT_ID present: {bool(WATSONX_PROJECT_ID)}. Please verify keys are added."
+            )
         }
 
     try:
