@@ -27,21 +27,16 @@ class ChatRequest(BaseModel):
 
 @app.post("/api/ai/chat", tags=["AI"])
 def ai_chat(payload: ChatRequest):
-    # 🔐 Read live system properties direct from shell environment mapping
+    # 🔐 Extract credentials from your environment mapping panel
     watsonx_key = os.environ.get("WATSONX_APIKEY") or os.getenv("WATSONX_APIKEY", "")
     watsonx_project = os.environ.get("WATSONX_PROJECT_ID") or os.getenv("WATSONX_PROJECT_ID", "")
-    watsonx_url = os.environ.get("WATSONX_URL") or os.getenv("WATSONX_URL", "https://us-south.ml.cloud.ibm.com")
+    
+    # 🌏 Official IBM Cloud Public Sydney Endpoint
+    watsonx_url = "https://au-syd.ml.cloud.ibm.com"
 
-    # If keys are completely empty, return diagnostic text to help fix it instantly
     if not watsonx_key or not watsonx_project:
         return {
-            "response": (
-                f"⚠️ Cloud Binding Error: The server process cannot see your environment configuration values.\n\n"
-                f"Diagnostic Check:\n"
-                f"• APIKEY detected: {'✅ YES' if watsonx_key else '❌ NO (Empty)'}\n"
-                f"• PROJECT_ID detected: {'✅ YES' if watsonx_project else '❌ NO (Empty)'}\n\n"
-                f"Quick Fix: Go to your Render Environment settings tab, look closely to ensure there are no trailing whitespaces inside the input rows, save them, and trigger a 'Clear Build Cache & Deploy'."
-            )
+            "response": "Authentication keys missing from the environment runtime setup."
         }
 
     try:
