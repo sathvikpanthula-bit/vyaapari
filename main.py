@@ -1,6 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from database import init_db
+import os
+
+# 🤖 IBM watsonx.ai SDK Imports
+from ibm_watsonx_ai.foundation_models import Model
 
 app = FastAPI(
     title="VYAAPARI API",
@@ -17,7 +22,61 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# We will include routers here once their files are set up!
+class ChatRequest(BaseModel):
+    message: str
+
+# 🔐 Extract Environment Variables from Render Config Panel
+WATSONX_APIKEY = os.getenv("WATSONX_APIKEY", "")
+WATSONX_PROJECT_ID = os.getenv("WATSONX_PROJECT_ID", "")
+WATSONX_URL = os.getenv("WATSONX_URL", "https://us-south.ml.cloud.ibm.com")
+
+credentials = {
+    "url": WATSONX_URL,
+    "apikey": WATSONX_APIKEY
+}
+
+@app.post("/api/ai/chat", tags=["AI"])
+def ai_chat(payload: ChatRequest):
+    # Safe check if variables aren't entered in Render settings yet
+    if not WATSONX_APIKEY or not WATSONX_PROJECT_ID:
+        return {
+            "response": "Granite engine is waiting for access keys. Please add WATSONX_APIKEY and WATSONX_PROJECT_ID inside your Render Environment settings tab!"
+        }
+
+    try:
+        # Configuration parameters for business insight delivery
+        model_id = "ibm/granite-13b-instruct-v2"
+        parameters = {
+            "decoding_method": "greedy",
+            "max_new_tokens": 300,
+            "min_new_tokens": 1,
+            "repetition_penalty": 1.0
+        }
+        
+        # Initialize the core model client instance
+        model = Model(
+            model_id=model_id,
+            credentials=credentials,
+            project_id=WATSONX_PROJECT_ID,
+            params=parameters
+        )
+        
+        # Construct context tailoring responses for local merchants
+        system_prompt = (
+            "You are an expert micro-business consultant assisting local street vendors and small shops. "
+            "Provide highly actionable, concise, and practical advice on pricing, inventory layout, "
+            "customer retention, and financial literacy (like PM SVANidhi loans or UPI setup).\n\n"
+        )
+        
+        full_prompt = f"{system_prompt}User: {payload.message}\nAssistant:"
+        generated_response = model.generate_text(prompt=full_prompt)
+        
+        return {"response": generated_response.strip()}
+        
+    except Exception as e:
+        return {
+            "response": f"Successfully connected to backend, but watsonx execution encountered an issue: {str(e)}"
+        }
 
 @app.on_event("startup")
 def startup_event():
@@ -33,26 +92,9 @@ def health_check():
 
 @app.get("/api/dashboard/metrics", tags=["Dashboard"])
 def get_dashboard_metrics():
-    # Provides initial dashboard state for tracking points and streaks!
     return {
         "total_sales": 0.0,
         "points": 100,
         "streak_days": 5,
         "recent_activity": []
     }
-from pydantic import BaseModel
-
-class ChatRequest(BaseModel):
-    message: str
-
-@app.post("/api/ai/chat", tags=["AI"])
-def ai_chat(payload: ChatRequest):
-    # This acts as a safe fallback response until your full Watsonx/Granite integration is wired up!
-    user_msg = payload.message.lower()
-    if "loan" in user_msg or "svanidhi" in user_msg:
-        return {"response": "You can check your PM SVANidhi eligibility by visiting the official portal on the right side of your dashboard. First-time vendors can apply for a collateral-free loan up to ₹10,000."}
-    elif "qr" in user_msg or "upi" in user_msg:
-        return {"response": "To set up digital payments, click the BHIM UPI portal link on the right. You will need your bank account details and your business smartphone to download the merchant app."}
-    else:
-        return {"response": f"I received your message: '{payload.message}'. I am online and connected to your cloud profile!"}
-    
