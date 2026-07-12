@@ -37,9 +37,9 @@ def ai_chat(payload: ChatRequest):
         }
 
     try:
-        # 🌏 Explicitly set the direct cloud API base to bypass the OpenShift error check
+        # 🌏 Official public IBM Cloud Sydney endpoint matching SDK v1.3.42
         credentials = {
-            "url": "https://cpd-api.au-syd.dai.cloud.ibm.com",
+            "url": "https://au-syd.ml.cloud.ibm.com",
             "apikey": watsonx_key
         }
         
