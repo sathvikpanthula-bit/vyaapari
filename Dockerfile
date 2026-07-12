@@ -2,18 +2,16 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# 1. Copy the requirements file directly from the backend folder and install it
-COPY backend/requirements.txt ./
+# Since Render is already inside the backend directory, 
+# requirements.txt and all code files are sitting right here!
+COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 2. Copy the entire repository content into /app
+# Copy all the files from this folder directly into /app
 COPY . .
 
-# 3. Change our active working directory straight to the backend folder
-WORKDIR /app/backend
-
-# 4. Explicitly include the backend directory in Python's search paths
-ENV PYTHONPATH=/app/backend
+# Explicitly make sure Python checks /app for your modules
+ENV PYTHONPATH=/app
 
 EXPOSE 8000
 
