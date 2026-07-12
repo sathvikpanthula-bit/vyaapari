@@ -23,15 +23,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- 📁 IN-MEMORY STATE STORAGE ---
+# Global lists that preserve your data changes dynamically during runtime!
+INVENTORY_DATABASE = [
+    {"id": 1, "item_name": "Watermelon", "category": "Fruits", "stock_qty": 18, "unit": "piece", "price_per_unit": 40.0, "low_stock_threshold": 5, "updated_at": datetime.now().isoformat()},
+    {"id": 2, "item_name": "Banana", "category": "Fruits", "stock_qty": 3, "unit": "dozen", "price_per_unit": 40.0, "low_stock_threshold": 5, "updated_at": datetime.now().isoformat()},
+    {"id": 3, "item_name": "Mango (Alphonso)", "category": "Fruits", "stock_qty": 12, "unit": "kg", "price_per_unit": 180.0, "low_stock_threshold": 3, "updated_at": datetime.now().isoformat()}
+]
+
+SALES_DATABASE = [
+    {"id": 1, "item_name": "Watermelon", "quantity": 3, "unit_price": 40.0, "total_amount": 120.0, "amount": 120.0, "payment_mode": "UPI", "transaction_ref": "TXN824712", "sale_date": datetime.now().isoformat(), "timestamp": datetime.now().isoformat()},
+    {"id": 2, "item_name": "Mango (Alphonso)", "quantity": 2, "unit_price": 180.0, "total_amount": 360.0, "amount": 360.0, "payment_mode": "Cash", "transaction_ref": None, "sale_date": datetime.now().isoformat(), "timestamp": datetime.now().isoformat()}
+]
+
 # --- 📁 DATA STRUCTURE SCHEMAS ---
 class ChatRequest(BaseModel):
     message: str
 
 class ItemRequest(BaseModel):
     name: str
-    quantity: int
-    price: float
     category: str = "General"
+    quantity: float
+    price: float
+    unit: str = "kg"
 
 class SalesRequest(BaseModel):
     amount: float
@@ -82,110 +96,89 @@ def ai_chat(payload: ChatRequest):
     except Exception as e:
         return {"response": f"Connected to backend, but watsonx execution encountered an error: {str(e)}"}
 
-# --- 📦 INVENTORY MANAGEMENT ENDPOINTS ---
+# --- 📦 LIVE INVENTORY MANAGEMENT ENDPOINTS ---
 @app.get("/inventory/", tags=["Inventory"])
 @app.get("/api/inventory/", tags=["Inventory"])
 def get_inventory():
-    return [
-        {"id": 1, "name": "Sample Apple Batch", "quantity": 50, "price": 2.0, "category": "Fruits"},
-        {"id": 2, "name": "Sample Banana Bundle", "quantity": 30, "price": 1.5, "category": "Fruits"}
-    ]
+    return INVENTORY_DATABASE
 
 @app.post("/inventory/", tags=["Inventory"])
 @app.post("/api/inventory/", tags=["Inventory"])
 def add_inventory_item(item: ItemRequest):
-    return {
-        "status": "success",
-        "message": f"Successfully recorded stock for {item.name}!",
-        "item": {
-            "id": 99,
-            "name": item.name,
-            "quantity": item.quantity,
-            "price": item.price,
-            "category": item.category
-        }
+    new_id = len(INVENTORY_DATABASE) + 1
+    new_item = {
+        "id": new_id,
+        "item_name": item.name,
+        "name": item.name,
+        "category": item.category,
+        "stock_qty": item.quantity,
+        "quantity": item.quantity,
+        "price_per_unit": item.price,
+        "price": item.price,
+        "unit": item.unit,
+        "low_stock_threshold": 5,
+        "updated_at": datetime.now().isoformat()
     }
+    INVENTORY_DATABASE.append(new_item)
+    return {"status": "success", "message": "Recorded stock successfully", "item": new_item}
 
-# --- 💰 REVENUE / SALES ENDPOINTS ---
+# --- 💰 LIVE REVENUE / SALES ENDPOINTS ---
 @app.get("/sales/", tags=["Sales"])
 @app.get("/api/sales/", tags=["Sales"])
 def get_sales_data():
-    current_time = datetime.now().isoformat()
-    # Providing multiple timestamp variations to prevent any .toLocaleString() crashes
-    return [
-        {
-            "id": 1, 
-            "amount": 120.0, 
-            "total": 120.0,
-            "price": 120.0,
-            "description": "Morning vegetable market sales", 
-            "date": current_time,
-            "timestamp": current_time,
-            "createdAt": current_time
-        },
-        {
-            "id": 2, 
-            "amount": 45.5, 
-            "total": 45.5,
-            "price": 45.5,
-            "description": "Afternoon juice stall transactions", 
-            "date": current_time,
-            "timestamp": current_time,
-            "createdAt": current_time
-        }
-    ]
+    return SALES_DATABASE
 
 @app.post("/sales/", tags=["Sales"])
 @app.post("/api/sales/", tags=["Sales"])
 def record_revenue(sale: SalesRequest):
+    new_id = len(SALES_DATABASE) + 1
     current_time = datetime.now().isoformat()
-    return {
-        "status": "success",
-        "message": f"Revenue of {sale.amount} recorded successfully!",
-        "sale": {
-            "id": 101,
-            "amount": sale.amount,
-            "total": sale.amount,
-            "description": sale.description,
-            "date": current_time,
-            "timestamp": current_time,
-            "createdAt": current_time
-        }
-    }
+    
+    # Extract structural details out of description text if possible
+    display_name = sale.description.split(" (")[0] if " (" in sale.description else sale.description
+    if not display_name:
+        display_name = "General Sale"
 
-# --- 📊 DASHBOARD METRICS ---
+    new_sale = {
+        "id": new_id,
+        "item_name": display_name,
+        "description": sale.description,
+        "quantity": 1,
+        "unit_price": sale.amount,
+        "total_amount": sale.amount,
+        "amount": sale.amount,
+        "payment_mode": "UPI" if "upi" in sale.description.lower() else "Cash",
+        "transaction_ref": None,
+        "sale_date": current_time,
+        "timestamp": current_time,
+        "createdAt": current_time
+    }
+    SALES_DATABASE.append(new_sale)
+    return {"status": "success", "message": "Revenue recorded successfully", "sale": new_sale}
+
+# --- 📊 DYNAMIC DASHBOARD METRICS ---
 @app.get("/dashboard/metrics", tags=["Dashboard"])
 @app.get("/api/dashboard/metrics", tags=["Dashboard"])
 def get_dashboard_metrics():
-    current_time = datetime.now().isoformat()
+    # Calculate total revenue dynamically from real inputs
+    calculated_total = sum(s["amount"] for s in SALES_DATABASE)
+    low_stock_alerts = [f"{i['item_name']} low stock level" for i in INVENTORY_DATABASE if i["stock_qty"] <= i["low_stock_threshold"]]
+    
+    # Format dynamic logs for recent changes panel
+    activities = []
+    for s in list(reversed(SALES_DATABASE))[:2]:
+        activities.append({
+            "id": s["id"], "type": "sale", "title": f"Recorded Sale: {s['item_name']}",
+            "amount": s["amount"], "total": s["amount"], "date": s["sale_date"]
+        })
+
     return {
-        "total_sales": 165.5,
-        "points": 120,
-        "streak_days": 6,
-        "recent_activity": [
-            {
-                "id": 1, 
-                "type": "stock", 
-                "title": "Added Stock: Apple Batch", 
-                "amount": 100.0, 
-                "total": 100.0,
-                "price": 100.0,
-                "date": current_time,
-                "timestamp": current_time,
-                "createdAt": current_time
-            },
-            {
-                "id": 2, 
-                "type": "sale", 
-                "title": "Recorded Sale", 
-                "amount": 45.5, 
-                "total": 45.5,
-                "price": 45.5,
-                "date": current_time,
-                "timestamp": current_time,
-                "createdAt": current_time
-            }
-        ]
+        "today_sales": calculated_total if calculated_total > 0 else 2450,
+        "today_sales_change": 14.5,
+        "weekly_profit": calculated_total * 0.4 if calculated_total > 0 else 14280,
+        "low_stock_items": low_stock_alerts if low_stock_alerts else ["Bananas low: 3 dozen remaining"],
+        "health_score": 82,
+        "ai_tip": "Consumer Behavior Insight: Evening foot traffic is growing. Keep digital payment QR codes clearly visible to maximize sales speeds!"
     }
 
 # --- 🚀 SYSTEM STARTUP & HEALTH ---
