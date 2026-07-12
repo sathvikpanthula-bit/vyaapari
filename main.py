@@ -9,7 +9,7 @@ from typing import Optional
 app = FastAPI(
     title="VYAAPARI API",
     description="True Multi-User Street Vendor Digitalization Agent — FastAPI Backend",
-    version="3.0.0",
+    version="3.1.0",
 )
 
 # CORS — allow React dev server and production domains
@@ -22,7 +22,6 @@ app.add_middleware(
 )
 
 # --- 📁 DYNAMIC MULTI-USER STORAGE MAPS ---
-# keyed by the user's unique email to ensure strict isolation!
 USER_PROFILES = {}      # email -> profile info
 USER_INVENTORY = {}     # email -> list of items
 USER_SALES = {}         # email -> list of sales
@@ -43,7 +42,6 @@ class SalesRequest(BaseModel):
     description: str = ""
     item_id: int = None
 
-# Permissive request schema to accept email/password combinations comfortably
 class AuthRequest(BaseModel):
     email: str
     password: Optional[str] = None
@@ -55,7 +53,7 @@ class AuthRequest(BaseModel):
 
 # --- 🛠️ DYNAMIC MULTI-USER DATA UTILITIES ---
 def get_user_from_token(authorization: str = Header(None), x_user_email: str = Header(None)):
-    """Safely extracts unique email identifier from headers, checking backup hooks first"""
+    """Safely extracts unique email identifier from incoming dev client network headers"""
     if x_user_email:
         return x_user_email.strip().lower()
 
@@ -65,14 +63,15 @@ def get_user_from_token(authorization: str = Header(None), x_user_email: str = H
     parts = authorization.split(" ")
     if len(parts) == 2:
         token_val = parts[1].replace("Bearer", "").strip()
-        return token_val.lower()
-        
-    return authorization.strip().lower()
+        if token_val and token_val != "undefined" and token_val != "null":
+            return token_val.lower()
+            
+    return "default_vendor@vyaapari.com"
 
 def initialize_user_space(email: str, name="Vendor", biz="Market Stall", area="Gachibowli", city="Hyderabad"):
     """Seeds separate operational storage spaces with isolated demo content for EACH email"""
     email_key = email.strip().lower()
-    if not email_key or email_key == "null" or email_key == "undefined":
+    if not email_key or email_key in ["null", "undefined", "default_vendor@vyaapari.com"]:
         email_key = "default_vendor@vyaapari.com"
     
     if email_key not in USER_PROFILES:
@@ -91,7 +90,7 @@ def initialize_user_space(email: str, name="Vendor", biz="Market Stall", area="G
     if email_key not in USER_SALES:
         USER_SALES[email_key] = []
 
-# --- 🔐 FIXED ACCOUNT ROUTERS (EMAIL SPECIFIC) ---
+# --- 🔐 FIXED ACCOUNT ROUTERS (MATCHING FRONTEND TARGET KEYS) ---
 @app.post("/auth/register", tags=["Auth"])
 @app.post("/api/auth/register", tags=["Auth"])
 def register_vendor(payload: AuthRequest):
@@ -110,7 +109,7 @@ def register_vendor(payload: AuthRequest):
     return {
         "status": "success",
         "message": "Vendor profile created successfully!",
-        "token": email_key,  
+        "access_token": email_key,  # 🚀 FIXED: Frontend expects 'access_token'!
         "user": USER_PROFILES[email_key]
     }
 
@@ -127,7 +126,7 @@ def login_vendor(payload: AuthRequest):
     return {
         "status": "success",
         "message": "Logged in successfully!",
-        "token": email_key,
+        "access_token": email_key,  # 🚀 FIXED: Frontend expects 'access_token'!
         "user": USER_PROFILES[email_key]
     }
 
@@ -235,7 +234,6 @@ def get_dashboard_metrics(authorization: str = Header(None), x_user_email: str =
     
     calculated_total = sum(s["amount"] for s in user_sales)
     low_stock_alerts = [f"{i['item_name']} low stock" for i in user_inventory if (i.get("stock_qty") or 0) <= (i.get("low_stock_threshold") or 5)]
-
     vendor_name = USER_PROFILES[user_id].get("vendor_name", "Vendor")
 
     return {
@@ -254,4 +252,4 @@ def startup_event():
 
 @app.get("/", tags=["Health"])
 def root():
-    return {"status": "VYAAPARI Isolated Multi-User API running", "version": "3.0.0"}
+    return {"status": "VYAAPARI Isolated Multi-User API running", "version": "3.1.0"}
