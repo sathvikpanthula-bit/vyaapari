@@ -6,10 +6,6 @@ import os
 
 # 🤖 IBM watsonx.ai SDK Imports
 from ibm_watsonx_ai.foundation_models import Model
-from dotenv import load_dotenv
-
-# Pre-load local configurations without erasing live cloud infrastructure keys
-load_dotenv()
 
 app = FastAPI(
     title="VYAAPARI API",
@@ -29,30 +25,32 @@ app.add_middleware(
 class ChatRequest(BaseModel):
     message: str
 
-# 🔐 Extract Environment Variables (Reads Render settings dashboard first)
-WATSONX_APIKEY = os.environ.get("WATSONX_APIKEY") or os.getenv("WATSONX_APIKEY", "")
-WATSONX_PROJECT_ID = os.environ.get("WATSONX_PROJECT_ID") or os.getenv("WATSONX_PROJECT_ID", "")
-WATSONX_URL = os.environ.get("WATSONX_URL") or os.getenv("WATSONX_URL", "https://us-south.ml.cloud.ibm.com")
-
-credentials = {
-    "url": WATSONX_URL,
-    "apikey": WATSONX_APIKEY
-}
-
 @app.post("/api/ai/chat", tags=["AI"])
 def ai_chat(payload: ChatRequest):
-    # Safe check if keys are completely missing from the system context
-    if not WATSONX_APIKEY or not WATSONX_PROJECT_ID:
+    # 🔐 Read live system properties direct from shell environment mapping
+    watsonx_key = os.environ.get("WATSONX_APIKEY") or os.getenv("WATSONX_APIKEY", "")
+    watsonx_project = os.environ.get("WATSONX_PROJECT_ID") or os.getenv("WATSONX_PROJECT_ID", "")
+    watsonx_url = os.environ.get("WATSONX_URL") or os.getenv("WATSONX_URL", "https://us-south.ml.cloud.ibm.com")
+
+    # If keys are completely empty, return diagnostic text to help fix it instantly
+    if not watsonx_key or not watsonx_project:
         return {
             "response": (
-                f"Granite engine is online, but variables are empty strings. "
-                f"Current system read status -> APIKEY present: {bool(WATSONX_APIKEY)}, "
-                f"PROJECT_ID present: {bool(WATSONX_PROJECT_ID)}. Please verify keys are added."
+                f"⚠️ Cloud Binding Error: The server process cannot see your environment configuration values.\n\n"
+                f"Diagnostic Check:\n"
+                f"• APIKEY detected: {'✅ YES' if watsonx_key else '❌ NO (Empty)'}\n"
+                f"• PROJECT_ID detected: {'✅ YES' if watsonx_project else '❌ NO (Empty)'}\n\n"
+                f"Quick Fix: Go to your Render Environment settings tab, look closely to ensure there are no trailing whitespaces inside the input rows, save them, and trigger a 'Clear Build Cache & Deploy'."
             )
         }
 
     try:
-        # Configuration parameters for business insight delivery
+        credentials = {
+            "url": watsonx_url,
+            "apikey": watsonx_key
+        }
+        
+        # Core Granite foundation client initialization parameters
         model_id = "ibm/granite-13b-instruct-v2"
         parameters = {
             "decoding_method": "greedy",
@@ -61,15 +59,13 @@ def ai_chat(payload: ChatRequest):
             "repetition_penalty": 1.0
         }
         
-        # Initialize the core model client instance
         model = Model(
             model_id=model_id,
             credentials=credentials,
-            project_id=WATSONX_PROJECT_ID,
+            project_id=watsonx_project,
             params=parameters
         )
         
-        # Construct context tailoring responses for local merchants
         system_prompt = (
             "You are an expert micro-business consultant assisting local street vendors and small shops. "
             "Provide highly actionable, concise, and practical advice on pricing, inventory layout, "
@@ -83,7 +79,7 @@ def ai_chat(payload: ChatRequest):
         
     except Exception as e:
         return {
-            "response": f"Successfully connected to backend, but watsonx execution encountered an issue: {str(e)}"
+            "response": f"Connected to backend, but watsonx execution encountered an error: {str(e)}"
         }
 
 @app.on_event("startup")
