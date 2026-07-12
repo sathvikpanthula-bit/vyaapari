@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from database import init_db
 import os
 from datetime import datetime
+from typing import Dict, Any
 
 # 🤖 IBM watsonx.ai SDK Imports
 from ibm_watsonx_ai.foundation_models import Model
@@ -11,7 +12,7 @@ from ibm_watsonx_ai.foundation_models import Model
 app = FastAPI(
     title="VYAAPARI API",
     description="Multi-User Street Vendor Digitalization Agent — FastAPI Backend",
-    version="2.0.0",
+    version="2.1.0",
 )
 
 # CORS — allow React dev server and production domains
@@ -24,12 +25,10 @@ app.add_middleware(
 )
 
 # --- 📁 DYNAMIC MULTI-USER STORAGE MAPS ---
-# These store unique accounts and isolate operational data by Phone/Token ID!
-USER_PROFILES = {}      # Mapped: phone -> profile details
-USER_INVENTORY = {}     # Mapped: phone -> list of items
-USER_SALES = {}         # Mapped: phone -> list of sales
+USER_PROFILES = {}      
+USER_INVENTORY = {}     
+USER_SALES = {}         
 
-# --- 📁 DATA STRUCTURE SCHEMAS ---
 class ChatRequest(BaseModel):
     message: str
 
@@ -45,30 +44,26 @@ class SalesRequest(BaseModel):
     description: str = ""
     item_id: int = None
 
-class RegisterRequest(BaseModel):
-    vendor_name: str
-    business_name: str
-    phone: str
+# 🧠 FIXED: Accepting a raw dynamic dictionary to safely match whatever field names LandingPage.tsx uses!
+class PermissiveAuthRequest(BaseModel):
+    phone: str = ""
+    phone_number: str = ""
+    vendor_name: str = ""
+    name: str = ""
+    business_name: str = ""
     area: str = "Gachibowli"
     city: str = "Hyderabad"
 
-class LoginRequest(BaseModel):
-    phone: str
-
 # --- 🛠️ MULTI-USER DATA UTILITIES ---
 def get_user_from_token(authorization: str = Header(None)):
-    """Extracts phone number from mock auth header string to route multi-tenant state data"""
     if not authorization:
-        # Fallback to general user if UI hasn't fully passed headers yet
         return "default_vendor"
-    # Authorization header pattern: 'Bearer <phone_number>'
     parts = authorization.split(" ")
     if len(parts) == 2:
         return parts[1]
     return "default_vendor"
 
 def initialize_user_space(phone: str, name="Vendor", biz="My Shop", area="Gachibowli", city="Hyderabad"):
-    """Seeds separate operational storage spaces with unique initial demo content per user account"""
     if phone not in USER_PROFILES:
         USER_PROFILES[phone] = {
             "vendor_name": name,
@@ -87,18 +82,18 @@ def initialize_user_space(phone: str, name="Vendor", biz="My Shop", area="Gachib
             {"id": 1, "item_name": "Watermelon", "quantity": 3, "unit_price": 40.0, "total_amount": 120.0, "amount": 120.0, "payment_mode": "UPI", "transaction_ref": "TXN824712", "sale_date": datetime.now().isoformat(), "timestamp": datetime.now().isoformat()}
         ]
 
-# --- 🔐 SECURE ACCOUNT VALIDATION ROUTERS ---
+# --- 🔐 FIXED ACCOUNT ROUTERS ---
 @app.post("/auth/register", tags=["Auth"])
 @app.post("/api/auth/register", tags=["Auth"])
-def register_vendor(payload: RegisterRequest):
-    phone_id = payload.phone.strip()
-    if not phone_id:
-        raise HTTPException(status_code=400, detail="A valid phone identifier is required.")
-        
+def register_vendor(payload: PermissiveAuthRequest):
+    # Extract phone from whichever key the frontend used
+    phone_id = (payload.phone or payload.phone_number or "unknown_vendor").strip()
+    vendor_name = (payload.vendor_name or payload.name or "Vendor").strip()
+    
     initialize_user_space(
         phone=phone_id, 
-        name=payload.vendor_name, 
-        biz=payload.business_name,
+        name=vendor_name, 
+        biz=payload.business_name or "Market Stall",
         area=payload.area,
         city=payload.city
     )
@@ -106,15 +101,15 @@ def register_vendor(payload: RegisterRequest):
     return {
         "status": "success",
         "message": "Vendor profile created successfully!",
-        "token": phone_id,  # Hand frontend their phone number as their access token
+        "token": phone_id,
         "user": USER_PROFILES[phone_id]
     }
 
 @app.post("/auth/login", tags=["Auth"])
 @app.post("/api/auth/login", tags=["Auth"])
-def login_vendor(payload: LoginRequest):
-    phone_id = payload.phone.strip()
-    # If the user profile doesn't exist yet, auto-generate a space so logging in never fails
+def login_vendor(payload: PermissiveAuthRequest):
+    phone_id = (payload.phone or payload.phone_number or "unknown_vendor").strip()
+    
     if phone_id not in USER_PROFILES:
         initialize_user_space(phone=phone_id, name="Returning Vendor", biz="Market Stall")
         
@@ -125,7 +120,7 @@ def login_vendor(payload: LoginRequest):
         "user": USER_PROFILES[phone_id]
     }
 
-# --- 🧠 ISOLATED AI CHAT LAYER ---
+# --- 🧠 AI CHAT LAYER ---
 @app.post("/api/ai/chat", tags=["AI"])
 def ai_chat(payload: ChatRequest):
     watsonx_key = os.environ.get("WATSONX_APIKEY") or os.getenv("WATSONX_APIKEY", "")
@@ -245,7 +240,7 @@ def get_dashboard_metrics(authorization: str = Header(None)):
         "weekly_profit": calculated_total * 0.45 if calculated_total > 0 else 5200.0,
         "low_stock_items": low_stock_alerts,
         "health_score": 85 if len(low_stock_alerts) == 0 else 72,
-        "ai_tip": f"Welcome back {USER_PROFILES[user_id]['vendor_name']}! Digital payment adoption speeds up transactions by 35% in {USER_PROFILES[user_id]['area']}."
+        "ai_tip": f"Welcome back! Digital payment adoption speeds up transactions by 35% in your area."
     }
 
 # --- 🚀 SYSTEM STARTUP & HEALTH ---
@@ -255,7 +250,7 @@ def startup_event():
 
 @app.get("/", tags=["Health"])
 def root():
-    return {"status": "VYAAPARI Multi-Tenant API running", "version": "2.0.0"}
+    return {"status": "VYAAPARI Multi-Tenant API running", "version": "2.1.0"}
 
 @app.get("/health", tags=["Health"])
 def health_check():
