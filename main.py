@@ -54,18 +54,26 @@ class AuthRequest(BaseModel):
     city: Optional[str] = "Hyderabad"
 
 # --- 🛠️ DYNAMIC MULTI-USER DATA UTILITIES ---
-def get_user_from_token(authorization: str = Header(None)):
-    """Extracts email identifier from the authorization header string"""
+def get_user_from_token(authorization: str = Header(None), x_user_email: str = Header(None)):
+    """Safely extracts unique email identifier from headers, checking backup hooks first"""
+    if x_user_email:
+        return x_user_email.strip().lower()
+
     if not authorization:
         return "default_vendor@vyaapari.com"
+        
     parts = authorization.split(" ")
     if len(parts) == 2:
-        return parts[1]  # The token returned by login/register is the email
-    return "default_vendor@vyaapari.com"
+        token_val = parts[1].replace("Bearer", "").strip()
+        return token_val.lower()
+        
+    return authorization.strip().lower()
 
 def initialize_user_space(email: str, name="Vendor", biz="Market Stall", area="Gachibowli", city="Hyderabad"):
     """Seeds separate operational storage spaces with isolated demo content for EACH email"""
     email_key = email.strip().lower()
+    if not email_key or email_key == "null" or email_key == "undefined":
+        email_key = "default_vendor@vyaapari.com"
     
     if email_key not in USER_PROFILES:
         USER_PROFILES[email_key] = {
@@ -76,7 +84,6 @@ def initialize_user_space(email: str, name="Vendor", biz="Market Stall", area="G
             "city": city
         }
     if email_key not in USER_INVENTORY:
-        # Give each user a clean starting catalog
         USER_INVENTORY[email_key] = [
             {"id": 1, "item_name": "Fresh Apples", "category": "Fruits", "stock_qty": 20, "unit": "kg", "price_per_unit": 100.0, "low_stock_threshold": 5, "updated_at": datetime.now().isoformat()},
             {"id": 2, "item_name": "Bananas", "category": "Fruits", "stock_qty": 5, "unit": "dozen", "price_per_unit": 40.0, "low_stock_threshold": 3, "updated_at": datetime.now().isoformat()}
@@ -103,7 +110,7 @@ def register_vendor(payload: AuthRequest):
     return {
         "status": "success",
         "message": "Vendor profile created successfully!",
-        "token": email_key,  # Give frontend the email as their specific workspace token
+        "token": email_key,  
         "user": USER_PROFILES[email_key]
     }
 
@@ -111,8 +118,9 @@ def register_vendor(payload: AuthRequest):
 @app.post("/api/auth/login", tags=["Auth"])
 def login_vendor(payload: AuthRequest):
     email_key = payload.email.strip().lower()
-    
-    # If the user space doesn't exist yet, auto-generate it cleanly so test accounts work instantly
+    if not email_key:
+        raise HTTPException(status_code=400, detail="Email is required.")
+        
     if email_key not in USER_PROFILES:
         initialize_user_space(email=email_key, name="Vendor", biz="Market Stall")
         
@@ -126,7 +134,6 @@ def login_vendor(payload: AuthRequest):
 # --- 🧠 ISOLATED AI CHAT LAYER ---
 @app.post("/api/ai/chat", tags=["AI"])
 def ai_chat(payload: ChatRequest):
-    # (Llama 3.3 configuration remains perfectly active and untouched here)
     watsonx_key = os.environ.get("WATSONX_APIKEY") or os.getenv("WATSONX_APIKEY", "")
     watsonx_project = os.environ.get("WATSONX_PROJECT_ID") or os.getenv("WATSONX_PROJECT_ID", "")
 
@@ -134,6 +141,7 @@ def ai_chat(payload: ChatRequest):
         return {"response": "Authentication keys are currently missing from the system setup."}
 
     try:
+        from ibm_watsonx_ai.foundation_models import Model
         credentials = {"url": "https://au-syd.ml.cloud.ibm.com", "apikey": watsonx_key}
         model_id = "meta-llama/llama-3-3-70b-instruct"
         parameters = {"decoding_method": "greedy", "max_new_tokens": 300, "min_new_tokens": 1, "repetition_penalty": 1.0}
@@ -152,15 +160,15 @@ def ai_chat(payload: ChatRequest):
 # --- 📦 USER-ISOLATED INVENTORY MANAGEMENT ---
 @app.get("/inventory/", tags=["Inventory"])
 @app.get("/api/inventory/", tags=["Inventory"])
-def get_inventory(authorization: str = Header(None)):
-    user_id = get_user_from_token(authorization)
+def get_inventory(authorization: str = Header(None), x_user_email: str = Header(None)):
+    user_id = get_user_from_token(authorization, x_user_email)
     initialize_user_space(user_id)
     return USER_INVENTORY[user_id]
 
 @app.post("/inventory/", tags=["Inventory"])
 @app.post("/api/inventory/", tags=["Inventory"])
-def add_inventory_item(item: ItemRequest, authorization: str = Header(None)):
-    user_id = get_user_from_token(authorization)
+def add_inventory_item(item: ItemRequest, authorization: str = Header(None), x_user_email: str = Header(None)):
+    user_id = get_user_from_token(authorization, x_user_email)
     initialize_user_space(user_id)
     
     new_id = len(USER_INVENTORY[user_id]) + 1
@@ -183,15 +191,15 @@ def add_inventory_item(item: ItemRequest, authorization: str = Header(None)):
 # --- 💰 USER-ISOLATED SALES MANAGEMENT ---
 @app.get("/sales/", tags=["Sales"])
 @app.get("/api/sales/", tags=["Sales"])
-def get_sales_data(authorization: str = Header(None)):
-    user_id = get_user_from_token(authorization)
+def get_sales_data(authorization: str = Header(None), x_user_email: str = Header(None)):
+    user_id = get_user_from_token(authorization, x_user_email)
     initialize_user_space(user_id)
     return USER_SALES[user_id]
 
 @app.post("/sales/", tags=["Sales"])
 @app.post("/api/sales/", tags=["Sales"])
-def record_revenue(sale: SalesRequest, authorization: str = Header(None)):
-    user_id = get_user_from_token(authorization)
+def record_revenue(sale: SalesRequest, authorization: str = Header(None), x_user_email: str = Header(None)):
+    user_id = get_user_from_token(authorization, x_user_email)
     initialize_user_space(user_id)
     
     new_id = len(USER_SALES[user_id]) + 1
@@ -218,15 +226,17 @@ def record_revenue(sale: SalesRequest, authorization: str = Header(None)):
 # --- 📊 USER-ISOLATED DASHBOARD METRICS ---
 @app.get("/dashboard/metrics", tags=["Dashboard"])
 @app.get("/api/dashboard/metrics", tags=["Dashboard"])
-def get_dashboard_metrics(authorization: str = Header(None)):
-    user_id = get_user_from_token(authorization)
+def get_dashboard_metrics(authorization: str = Header(None), x_user_email: str = Header(None)):
+    user_id = get_user_from_token(authorization, x_user_email)
     initialize_user_space(user_id)
     
     user_sales = USER_SALES[user_id]
     user_inventory = USER_INVENTORY[user_id]
     
     calculated_total = sum(s["amount"] for s in user_sales)
-    low_stock_alerts = [f"{i['item_name']} low stock" for i in user_inventory if i["stock_qty"] <= i["low_stock_threshold"]]
+    low_stock_alerts = [f"{i['item_name']} low stock" for i in user_inventory if (i.get("stock_qty") or 0) <= (i.get("low_stock_threshold") or 5)]
+
+    vendor_name = USER_PROFILES[user_id].get("vendor_name", "Vendor")
 
     return {
         "today_sales": calculated_total if calculated_total > 0 else 0.0,
@@ -234,7 +244,7 @@ def get_dashboard_metrics(authorization: str = Header(None)):
         "weekly_profit": calculated_total * 0.45 if calculated_total > 0 else 0.0,
         "low_stock_items": low_stock_alerts,
         "health_score": 100 if len(low_stock_alerts) == 0 else 75,
-        "ai_tip": f"Welcome back, {USER_PROFILES[user_id]['vendor_name']}! Your data is fully secure and private."
+        "ai_tip": f"Welcome back, {vendor_name}! Your data is fully secure and private."
     }
 
 # --- 🚀 SYSTEM STARTUP & HEALTH ---
