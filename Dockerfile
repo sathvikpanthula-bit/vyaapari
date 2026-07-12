@@ -2,14 +2,13 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Copy requirements from the backend folder and install them
-COPY backend/requirements.txt .
+# Since Render is already inside the backend folder, 
+# requirements.txt is right here in the root!
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the backend code
-COPY backend/ ./backend/
-
-WORKDIR /app/backend
+# Copy all the backend files directly into the container
+COPY . .
 
 EXPOSE 8000
 
