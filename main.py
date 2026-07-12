@@ -43,7 +43,8 @@ def ai_chat(payload: ChatRequest):
             "apikey": watsonx_key
         }
         
-        model_id = "ibm/granite-13b-instruct-v2"
+        # 🚀 Updated to the exact Llama 3.3 model supported by your environment
+        model_id = "meta-llama/llama-3-3-70b-instruct"
         parameters = {
             "decoding_method": "greedy",
             "max_new_tokens": 300,
