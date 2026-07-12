@@ -110,22 +110,46 @@ def add_inventory_item(item: ItemRequest):
 @app.get("/sales/", tags=["Sales"])
 @app.get("/api/sales/", tags=["Sales"])
 def get_sales_data():
+    current_time = datetime.now().isoformat()
+    # Providing multiple timestamp variations to prevent any .toLocaleString() crashes
     return [
-        {"id": 1, "amount": 120.0, "description": "Morning vegetable market sales", "timestamp": datetime.now().isoformat()},
-        {"id": 2, "amount": 45.5, "description": "Afternoon juice stall transactions", "timestamp": datetime.now().isoformat()}
+        {
+            "id": 1, 
+            "amount": 120.0, 
+            "total": 120.0,
+            "price": 120.0,
+            "description": "Morning vegetable market sales", 
+            "date": current_time,
+            "timestamp": current_time,
+            "createdAt": current_time
+        },
+        {
+            "id": 2, 
+            "amount": 45.5, 
+            "total": 45.5,
+            "price": 45.5,
+            "description": "Afternoon juice stall transactions", 
+            "date": current_time,
+            "timestamp": current_time,
+            "createdAt": current_time
+        }
     ]
 
 @app.post("/sales/", tags=["Sales"])
 @app.post("/api/sales/", tags=["Sales"])
 def record_revenue(sale: SalesRequest):
+    current_time = datetime.now().isoformat()
     return {
         "status": "success",
         "message": f"Revenue of {sale.amount} recorded successfully!",
         "sale": {
             "id": 101,
             "amount": sale.amount,
+            "total": sale.amount,
             "description": sale.description,
-            "timestamp": datetime.now().isoformat()
+            "date": current_time,
+            "timestamp": current_time,
+            "createdAt": current_time
         }
     }
 
@@ -133,7 +157,6 @@ def record_revenue(sale: SalesRequest):
 @app.get("/dashboard/metrics", tags=["Dashboard"])
 @app.get("/api/dashboard/metrics", tags=["Dashboard"])
 def get_dashboard_metrics():
-    # Structured objects to satisfy .toLocaleString() frontend properties safely
     current_time = datetime.now().isoformat()
     return {
         "total_sales": 165.5,
@@ -145,16 +168,22 @@ def get_dashboard_metrics():
                 "type": "stock", 
                 "title": "Added Stock: Apple Batch", 
                 "amount": 100.0, 
+                "total": 100.0,
+                "price": 100.0,
                 "date": current_time,
-                "timestamp": current_time
+                "timestamp": current_time,
+                "createdAt": current_time
             },
             {
                 "id": 2, 
                 "type": "sale", 
                 "title": "Recorded Sale", 
                 "amount": 45.5, 
+                "total": 45.5,
+                "price": 45.5,
                 "date": current_time,
-                "timestamp": current_time
+                "timestamp": current_time,
+                "createdAt": current_time
             }
         ]
     }
