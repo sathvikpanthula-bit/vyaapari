@@ -40,3 +40,19 @@ def get_dashboard_metrics():
         "streak_days": 5,
         "recent_activity": []
     }
+from pydantic import BaseModel
+
+class ChatRequest(BaseModel):
+    message: str
+
+@app.post("/api/ai/chat", tags=["AI"])
+def ai_chat(payload: ChatRequest):
+    # This acts as a safe fallback response until your full Watsonx/Granite integration is wired up!
+    user_msg = payload.message.lower()
+    if "loan" in user_msg or "svanidhi" in user_msg:
+        return {"response": "You can check your PM SVANidhi eligibility by visiting the official portal on the right side of your dashboard. First-time vendors can apply for a collateral-free loan up to ₹10,000."}
+    elif "qr" in user_msg or "upi" in user_msg:
+        return {"response": "To set up digital payments, click the BHIM UPI portal link on the right. You will need your bank account details and your business smartphone to download the merchant app."}
+    else:
+        return {"response": f"I received your message: '{payload.message}'. I am online and connected to your cloud profile!"}
+    
