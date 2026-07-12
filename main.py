@@ -24,7 +24,6 @@ app.add_middleware(
 )
 
 # --- 📁 IN-MEMORY STATE STORAGE ---
-# Global lists that preserve your data changes dynamically during runtime!
 INVENTORY_DATABASE = [
     {"id": 1, "item_name": "Watermelon", "category": "Fruits", "stock_qty": 18, "unit": "piece", "price_per_unit": 40.0, "low_stock_threshold": 5, "updated_at": datetime.now().isoformat()},
     {"id": 2, "item_name": "Banana", "category": "Fruits", "stock_qty": 3, "unit": "dozen", "price_per_unit": 40.0, "low_stock_threshold": 5, "updated_at": datetime.now().isoformat()},
@@ -51,6 +50,32 @@ class SalesRequest(BaseModel):
     amount: float
     description: str = ""
     item_id: int = None
+
+# 🔐 New schema to capture registration form details from LandingPage.tsx
+class RegisterRequest(BaseModel):
+    vendor_name: str
+    business_name: str
+    phone: str = ""
+    area: str = "Gachibowli"
+    city: str = "Hyderabad"
+
+# --- 🔐 MISSING REGISTRATION ENDPOINT FIX ---
+@app.post("/auth/register", tags=["Auth"])
+@app.post("/api/auth/register", tags=["Auth"])
+def register_vendor(payload: RegisterRequest):
+    # Mimic a production JWT authentication response that context hooks look for
+    return {
+        "status": "success",
+        "message": "Vendor profile created successfully!",
+        "token": "mock-jwt-session-token-vyaapari",
+        "user": {
+            "vendor_name": payload.vendor_name,
+            "business_name": payload.business_name,
+            "phone": payload.phone,
+            "area": payload.area,
+            "city": payload.city
+        }
+    }
 
 # --- 🧠 AI CHAT LAYER ---
 @app.post("/api/ai/chat", tags=["AI"])
@@ -134,7 +159,6 @@ def record_revenue(sale: SalesRequest):
     new_id = len(SALES_DATABASE) + 1
     current_time = datetime.now().isoformat()
     
-    # Extract structural details out of description text if possible
     display_name = sale.description.split(" (")[0] if " (" in sale.description else sale.description
     if not display_name:
         display_name = "General Sale"
@@ -160,11 +184,9 @@ def record_revenue(sale: SalesRequest):
 @app.get("/dashboard/metrics", tags=["Dashboard"])
 @app.get("/api/dashboard/metrics", tags=["Dashboard"])
 def get_dashboard_metrics():
-    # Calculate total revenue dynamically from real inputs
     calculated_total = sum(s["amount"] for s in SALES_DATABASE)
     low_stock_alerts = [f"{i['item_name']} low stock level" for i in INVENTORY_DATABASE if i["stock_qty"] <= i["low_stock_threshold"]]
     
-    # Format dynamic logs for recent changes panel
     activities = []
     for s in list(reversed(SALES_DATABASE))[:2]:
         activities.append({
