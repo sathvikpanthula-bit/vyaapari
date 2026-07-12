@@ -2,17 +2,15 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# 1. Install dependencies first
+# Copy the requirements file from the current directory and install
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 2. Copy the entire backend folder contents straight into /app
-# This moves main.py and routers into the exact same folder level!
+# Copy all files into the /app directory
 COPY . .
 
-EXPOSE 8000
+# Force Python to look both in /app and inside a backend directory if it exists
+ENV PYTHONPATH="/app:/app/backend"
 
-# 3. Explicitly tell Python that the current folder is part of its search path
-ENV PYTHONPATH=/app
-
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start the application by letting Uvicorn try both common path styles
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
